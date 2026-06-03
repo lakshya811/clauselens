@@ -8,9 +8,11 @@ deployment and CI have something green to hit.
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app import __version__
 from app.config import get_settings
@@ -76,6 +78,11 @@ def create_app() -> FastAPI:
         observability log — no external metrics store required.
         """
         return compute_metrics(window=window)
+
+    # Serve the pre-built React frontend (if present)
+    _static = Path(__file__).parent.parent / "static"
+    if _static.is_dir():
+        app.mount("/", StaticFiles(directory=_static, html=True), name="frontend")
 
     return app
 

@@ -1,3 +1,14 @@
+---
+title: ClauseLens
+emoji: ⚖️
+colorFrom: indigo
+colorTo: purple
+sdk: docker
+app_port: 7860
+short_description: AI contract analysis — clause extraction, risk flags, Q&A chat
+pinned: false
+---
+
 # ClauseLens — AI Contract Analysis & Comparison
 
 > Upload a contract PDF → get **clause extraction**, **risk flags**, **version diff**,

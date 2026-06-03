@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Send, Loader2, BookOpen, ChevronDown, ChevronUp } from 'lucide-react'
+import { Send, Loader2, BookOpen, ChevronUp, ShieldCheck } from 'lucide-react'
 import { askQuestion, type CitedChunk } from '../api'
 import type { ChatMessage } from '../App'
 
@@ -9,28 +9,42 @@ interface Props {
   setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>
 }
 
-// Expandable citation card — clicking reveals the full source text
+// Citation card — collapses to a one-liner, expands to show the exact source
+// text highlighted like a document annotation. The highlight is intentional:
+// it signals "this is real contract text, not a paraphrase."
 function CitationCard({ c }: { c: CitedChunk }) {
   const [expanded, setExpanded] = useState(false)
   return (
     <button
       onClick={() => setExpanded(e => !e)}
-      className="w-full text-left text-xs bg-gray-900/70 hover:bg-gray-900 border border-gray-700/60 hover:border-indigo-600/40 rounded-lg px-2.5 py-2 transition-colors space-y-1"
+      className="w-full text-left text-xs border rounded-lg px-2.5 py-2 transition-all space-y-1.5
+        bg-gray-900/70 border-gray-700/60 hover:border-indigo-500/50"
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-indigo-400 font-mono font-semibold">{c.citation}</span>
-        <div className="flex items-center gap-1.5 text-gray-500">
-          <span className="text-gray-600">score {c.score.toFixed(2)}</span>
-          {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+        <div className="flex items-center gap-2 text-gray-600">
+          <span>score {c.score.toFixed(2)}</span>
+          {expanded
+            ? <ChevronUp className="w-3 h-3" />
+            : <span className="text-indigo-500/70 text-xs">click to read source ↓</span>}
         </div>
       </div>
+
+      {/* Collapsed preview */}
       {!expanded && (
         <p className="text-gray-500 line-clamp-1">{c.text_snippet}</p>
       )}
+
+      {/* Expanded: full source text, styled like a document highlight */}
       {expanded && (
-        <p className="text-gray-300 whitespace-pre-wrap leading-relaxed border-t border-gray-700/50 pt-1.5 mt-1">
-          {c.text_snippet}
-        </p>
+        <div className="mt-1 border-t border-gray-700/50 pt-2">
+          <p className="text-[10px] text-amber-500/70 mb-1.5 uppercase tracking-wide font-semibold">
+            Exact source text from contract
+          </p>
+          <blockquote className="bg-amber-950/30 border-l-2 border-amber-500/60 pl-3 pr-2 py-2 rounded-r text-gray-200 whitespace-pre-wrap leading-relaxed">
+            {c.text_snippet}
+          </blockquote>
+        </div>
       )}
     </button>
   )
@@ -73,7 +87,16 @@ export function ChatPanel({ docId, messages, setMessages }: Props) {
   }
 
   return (
-    <div className="flex flex-col h-[600px]">
+    <div className="flex flex-col h-[620px]">
+      {/* Grounded badge — visible proof of RAG citations */}
+      <div className="flex items-center gap-2 mb-3 px-1">
+        <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+        <p className="text-xs text-gray-400">
+          Every answer is grounded in the contract.{' '}
+          <span className="text-emerald-400 font-medium">Click any source citation to read the exact contract text.</span>
+        </p>
+      </div>
+
       <div className="flex-1 overflow-y-auto space-y-4 pr-1 pb-2">
         {messages.length === 0 && (
           <p className="text-gray-600 text-sm text-center pt-8">
@@ -89,12 +112,11 @@ export function ChatPanel({ docId, messages, setMessages }: Props) {
             }`}>
               <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
 
-              {/* Verifiable citations — click to expand full source text */}
               {msg.response && msg.response.citations.length > 0 && (
                 <div className="space-y-1.5 border-t border-gray-700/60 pt-2">
-                  <p className="text-xs text-gray-500 flex items-center gap-1">
+                  <p className="text-xs text-gray-500 flex items-center gap-1.5">
                     <BookOpen className="w-3 h-3" />
-                    Sources — click to verify
+                    {msg.response.citations.length} source{msg.response.citations.length > 1 ? 's' : ''} retrieved — click to read contract text
                   </p>
                   {msg.response.citations.slice(0, 5).map((c, ci) => (
                     <CitationCard key={ci} c={c} />
@@ -102,7 +124,6 @@ export function ChatPanel({ docId, messages, setMessages }: Props) {
                 </div>
               )}
 
-              {/* Cost / latency footer */}
               {msg.response && (
                 <p className="text-xs text-gray-600 border-t border-gray-700/40 pt-1.5">
                   answered in {(msg.response.latency_ms / 1000).toFixed(1)}s · ~${msg.response.cost_usd.toFixed(4)} · {msg.response.retrieval_hits} chunks retrieved · {msg.response.model}

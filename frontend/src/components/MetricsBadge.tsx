@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { Activity } from 'lucide-react'
 import { fetchMetrics, type MetricsResponse } from '../api'
 
 export function MetricsBadge() {
@@ -16,16 +15,19 @@ export function MetricsBadge() {
   if (!metrics || metrics.total_requests === 0) return null
 
   return (
-    <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-900 border border-gray-800 rounded-full px-3 py-1.5">
-      <Activity className="w-3 h-3 text-emerald-500" />
-      <span>{metrics.total_requests} req</span>
-      <span className="text-gray-700">·</span>
-      <span>p50 {metrics.latency_p50_ms.toFixed(0)} ms</span>
-      <span className="text-gray-700">·</span>
-      <span>${metrics.cost_per_query_usd.toFixed(5)}/query</span>
+    <div className="hidden md:flex items-center gap-2.5 text-xs text-slate-400 bg-slate-900/70 border border-slate-800 rounded-full pl-2.5 pr-3 py-1.5 tnum">
+      <span className="relative flex h-2 w-2">
+        <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-500/60 animate-ping" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+      </span>
+      <span><span className="text-slate-200 font-medium">{metrics.total_requests}</span> req</span>
+      <span className="text-slate-700">·</span>
+      <span>p50 {metrics.latency_p50_ms.toFixed(0)}ms</span>
+      <span className="text-slate-700">·</span>
+      <span><span className="text-slate-200 font-medium">${metrics.cost_per_query_usd.toFixed(5)}</span>/query</span>
       {metrics.error_rate > 0 && (
         <>
-          <span className="text-gray-700">·</span>
+          <span className="text-slate-700">·</span>
           <span className="text-red-400">{(metrics.error_rate * 100).toFixed(1)}% err</span>
         </>
       )}

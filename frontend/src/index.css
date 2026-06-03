@@ -3,21 +3,87 @@
 @tailwind utilities;
 
 @layer base {
-  html { @apply bg-gray-950; }
-  body { @apply bg-gray-950 text-gray-100 antialiased; }
-  ::-webkit-scrollbar { @apply w-1.5 h-1.5; }
-  ::-webkit-scrollbar-track { @apply bg-gray-900; }
-  ::-webkit-scrollbar-thumb { @apply bg-gray-700 rounded-full; }
+  :root {
+    color-scheme: dark;
+  }
+
+  html,
+  body {
+    background-color: #0a0e17;
+  }
+
+  body {
+    @apply text-slate-200 antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Subtle brand glow at the top of the page */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background: radial-gradient(
+      75% 45% at 50% -12%,
+      rgba(59, 109, 246, 0.1),
+      transparent 70%
+    );
+  }
+
+  #root {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Tabular numerals for metrics / scores */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::-webkit-scrollbar {
+    @apply w-1.5 h-1.5;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-700/80 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-600;
+  }
+
+  /* Accessible keyboard focus rings on interactive elements only */
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [tabindex]:focus-visible {
+    @apply outline-none ring-2 ring-brand-500/60 ring-offset-2 ring-offset-[#0a0e17];
+  }
 }
 
 @layer components {
-  .card { @apply bg-gray-900 border border-gray-800 rounded-xl p-4; }
-  .badge-high { @apply bg-red-900/60 text-red-300 border border-red-700/50; }
-  .badge-medium { @apply bg-amber-900/60 text-amber-300 border border-amber-700/50; }
-  .badge-low { @apply bg-emerald-900/60 text-emerald-300 border border-emerald-700/50; }
-  .badge-structural { @apply bg-red-900/50 text-red-300 border border-red-700/40; }
-  .badge-semantic { @apply bg-amber-900/50 text-amber-300 border border-amber-700/40; }
-  .badge-surface { @apply bg-sky-900/50 text-sky-300 border border-sky-700/40; }
-  .tab-active { @apply border-b-2 border-indigo-500 text-indigo-400; }
-  .tab-inactive { @apply border-b-2 border-transparent text-gray-400 hover:text-gray-200; }
+  .label {
+    @apply block text-xs font-medium text-slate-400 mb-1.5;
+  }
+
+  .input {
+    @apply w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm text-slate-100
+      placeholder-slate-500 transition-colors
+      focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/40;
+  }
+
+  .select {
+    @apply input appearance-none pr-9 cursor-pointer;
+  }
+
+  /* Hairline divider */
+  .hr {
+    @apply border-t border-slate-800;
+  }
 }

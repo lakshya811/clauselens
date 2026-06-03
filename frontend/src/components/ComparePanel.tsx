@@ -1,20 +1,13 @@
 import { useState } from 'react'
-import { Loader2, GitCompare } from 'lucide-react'
-import { compareDocuments, type CompareResponse, type ChangeType } from '../api'
+import { GitCompare, AlertTriangle, ArrowRight } from 'lucide-react'
+import { compareDocuments, type CompareResponse, type ChangeType, type UploadResponse } from '../api'
+import { Card, CardHeader, Badge, Button, Alert, EmptyState } from './ui'
 
 interface Props {
-  docIds: string[]
+  docs: UploadResponse[]
 }
 
-function ChangeBadge({ type }: { type: ChangeType }) {
-  return (
-    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full badge-${type}`}>
-      {type.toUpperCase()}
-    </span>
-  )
-}
-
-export function ComparePanel({ docIds }: Props) {
+export function ComparePanel({ docs }: Props) {
   const [docA, setDocA] = useState('')
   const [docB, setDocB] = useState('')
   const [loading, setLoading] = useState(false)
@@ -34,112 +27,106 @@ export function ComparePanel({ docIds }: Props) {
     }
   }
 
-  if (docIds.length < 2) {
-    return <p className="text-gray-500 text-sm">Upload at least two documents to compare versions.</p>
+  if (docs.length < 2) {
+    return (
+      <EmptyState
+        icon={<GitCompare className="w-10 h-10" />}
+        title="Load two contracts to compare"
+        hint="Upload (or load samples for) two versions of a contract, then return here to classify every change as Structural, Semantic, or Surface."
+      />
+    )
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-3 items-end">
-        <div className="flex-1">
-          <label className="text-xs text-gray-500 block mb-1">Version A (original)</label>
-          <select
-            value={docA}
-            onChange={e => setDocA(e.target.value)}
-            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-indigo-500"
-          >
-            <option value="">Select document</option>
-            {docIds.map(id => <option key={id} value={id}>{id}</option>)}
-          </select>
+      <Card className="p-4">
+        <div className="grid sm:grid-cols-[1fr_auto_1fr_auto] gap-3 items-end">
+          <div>
+            <label className="label">Version A — original</label>
+            <select value={docA} onChange={e => setDocA(e.target.value)} className="select">
+              <option value="">Select document</option>
+              {docs.map(d => <option key={d.doc_id} value={d.doc_id}>{d.filename}</option>)}
+            </select>
+          </div>
+          <div className="hidden sm:grid place-items-center pb-2.5 text-slate-600">
+            <ArrowRight className="w-4 h-4" />
+          </div>
+          <div>
+            <label className="label">Version B — revised</label>
+            <select value={docB} onChange={e => setDocB(e.target.value)} className="select">
+              <option value="">Select document</option>
+              {docs.map(d => <option key={d.doc_id} value={d.doc_id}>{d.filename}</option>)}
+            </select>
+          </div>
+          <Button onClick={run} loading={loading} disabled={!docA || !docB || docA === docB}>
+            {!loading && <GitCompare className="w-4 h-4" />} Compare
+          </Button>
         </div>
-        <div className="flex-1">
-          <label className="text-xs text-gray-500 block mb-1">Version B (revised)</label>
-          <select
-            value={docB}
-            onChange={e => setDocB(e.target.value)}
-            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-indigo-500"
-          >
-            <option value="">Select document</option>
-            {docIds.map(id => <option key={id} value={id}>{id}</option>)}
-          </select>
-        </div>
-        <button
-          onClick={run}
-          disabled={loading || !docA || !docB || docA === docB}
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-        >
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <GitCompare className="w-4 h-4" />}
-          Compare
-        </button>
-      </div>
+        {docA && docB && docA === docB && (
+          <p className="text-xs text-amber-300 mt-2">Select two different documents.</p>
+        )}
+      </Card>
 
-      {error && (
-        <p className="text-red-400 text-sm bg-red-950/40 border border-red-800/50 rounded-lg px-3 py-2">
-          {error}
-        </p>
-      )}
+      {error && <Alert><AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /><span>{error}</span></Alert>}
 
       {result && (
-        <div className="space-y-4">
-          {/* Summary */}
-          <div className="card space-y-3">
-            <div className="flex items-center gap-4">
-              <span className="badge-structural text-xs font-semibold px-2 py-0.5 rounded-full">
-                {result.result.structural_count} Structural
-              </span>
-              <span className="badge-semantic text-xs font-semibold px-2 py-0.5 rounded-full">
-                {result.result.semantic_count} Semantic
-              </span>
-              <span className="badge-surface text-xs font-semibold px-2 py-0.5 rounded-full">
-                {result.result.surface_count} Surface
-              </span>
+        <div className="space-y-4 animate-fade-in">
+          <Card>
+            <CardHeader title="Change summary" />
+            <div className="p-4 space-y-3">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <Badge tone="structural">{result.result.structural_count} Structural</Badge>
+                <Badge tone="semantic">{result.result.semantic_count} Semantic</Badge>
+                <Badge tone="surface">{result.result.surface_count} Surface</Badge>
+              </div>
+              <p className="text-sm text-slate-300 leading-relaxed">{result.result.summary}</p>
+              {result.result.favours && (
+                <p className="text-xs text-brand-300">
+                  <span className="text-slate-500">Favours — </span>{result.result.favours}
+                </p>
+              )}
             </div>
-            <p className="text-sm text-gray-300">{result.result.summary}</p>
-            {result.result.favours && (
-              <p className="text-xs text-indigo-300">
-                <span className="text-gray-500">Favours: </span>{result.result.favours}
-              </p>
-            )}
-          </div>
+          </Card>
 
-          {/* Change list */}
           {result.result.changes.length > 0 && (
             <ul className="space-y-3">
               {result.result.changes.map((c, i) => (
-                <li key={i} className="card space-y-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <ChangeBadge type={c.change_type} />
-                    <span className="text-sm font-medium text-gray-200">{c.clause_reference}</span>
-                  </div>
-                  <p className="text-xs text-gray-400">{c.explanation}</p>
-                  {(c.old_text || c.new_text) && (
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      {c.old_text && (
-                        <div className="bg-red-950/30 border border-red-800/30 rounded p-2">
-                          <p className="text-red-400 font-semibold mb-1">Version A</p>
-                          <p className="text-gray-300 line-clamp-3">{c.old_text}</p>
-                        </div>
-                      )}
-                      {c.new_text && (
-                        <div className="bg-emerald-950/30 border border-emerald-800/30 rounded p-2">
-                          <p className="text-emerald-400 font-semibold mb-1">Version B</p>
-                          <p className="text-gray-300 line-clamp-3">{c.new_text}</p>
-                        </div>
-                      )}
+                <li key={i}>
+                  <Card className="p-4 space-y-2.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge tone={c.change_type as ChangeType}>{c.change_type.toUpperCase()}</Badge>
+                      <span className="text-sm font-medium text-slate-200">{c.clause_reference}</span>
                     </div>
-                  )}
-                  {c.risk_delta && (
-                    <p className="text-xs text-amber-400">
-                      <span className="text-gray-500">Risk delta: </span>{c.risk_delta}
-                    </p>
-                  )}
+                    <p className="text-xs text-slate-400 leading-relaxed">{c.explanation}</p>
+                    {(c.old_text || c.new_text) && (
+                      <div className="grid sm:grid-cols-2 gap-2 text-xs">
+                        {c.old_text && (
+                          <div className="bg-red-500/[0.07] border border-red-500/20 rounded-lg p-2.5">
+                            <p className="text-red-300 font-semibold mb-1">Version A</p>
+                            <p className="text-slate-300 line-clamp-4 leading-relaxed">{c.old_text}</p>
+                          </div>
+                        )}
+                        {c.new_text && (
+                          <div className="bg-emerald-500/[0.07] border border-emerald-500/20 rounded-lg p-2.5">
+                            <p className="text-emerald-300 font-semibold mb-1">Version B</p>
+                            <p className="text-slate-300 line-clamp-4 leading-relaxed">{c.new_text}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {c.risk_delta && (
+                      <p className="text-xs text-amber-300">
+                        <span className="text-slate-500">Risk delta — </span>{c.risk_delta}
+                      </p>
+                    )}
+                  </Card>
                 </li>
               ))}
             </ul>
           )}
 
-          <p className="text-xs text-gray-600">
-            {result.model} · {result.input_tokens + result.output_tokens} tokens · ${result.cost_usd.toFixed(6)} · {result.latency_ms.toFixed(0)} ms
+          <p className="text-xs text-slate-600 tnum px-1">
+            answered in {(result.latency_ms / 1000).toFixed(1)}s · {result.input_tokens + result.output_tokens} tokens · ~${result.cost_usd.toFixed(4)} · {result.model}
           </p>
         </div>
       )}

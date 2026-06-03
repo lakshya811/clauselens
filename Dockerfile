@@ -28,10 +28,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # ---- Python deps -------------------------------------------------------
 WORKDIR /app
 COPY pyproject.toml ./
-# Install all extras (rag includes faiss-cpu + sentence-transformers)
-# --no-build-isolation keeps the layer cacheable; setuptools is already present.
+# sentence-transformers pulls PyTorch (~2 GB) which times out on the free-tier
+# HF builder. The cross-encoder reranker has a graceful fallback when it is
+# absent (returns top-n candidates unscored). Install faiss-cpu directly.
+# All other optional deps (ocr, pg) are included.
 RUN pip install --no-cache-dir --upgrade pip \
- && pip install --no-cache-dir -e ".[rag,ocr,pg]"
+ && pip install --no-cache-dir -e ".[ocr,pg]" \
+ && pip install --no-cache-dir faiss-cpu==1.9.0.post1
 
 # ---- Application code --------------------------------------------------
 COPY backend/ ./backend/

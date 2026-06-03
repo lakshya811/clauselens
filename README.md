@@ -19,7 +19,7 @@ pinned: false
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-🔗 **Live demo:** [clauselens.hf.space](https://clauselens.hf.space) _(Hugging Face Space)_
+🔗 **Live demo:** [lakshya1111-clauselens.hf.space](https://lakshya1111-clauselens.hf.space) _(Hugging Face Space)_
 
 ---
 

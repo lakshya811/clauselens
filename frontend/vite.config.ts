@@ -16,7 +16,8 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: '../backend/static',
+    // Default dist/ for Docker; local `make frontend` copies to backend/static
+    outDir: 'dist',
     emptyOutDir: true,
   },
 })

@@ -27,6 +27,9 @@ eval:  ## Run the LLM-as-Judge eval harness and print the scorecard
 fetch-samples:  ## Download PUBLIC sample contracts (CUAD / SEC EDGAR)
 	python scripts/fetch_samples.py
 
+frontend:  ## Build the React SPA and copy to backend/static
+	cd frontend && npm run build && cp -r dist/ ../backend/static/
+
 docker-build:  ## Build the deployment container
 	docker build -t clauselens:latest .
 

@@ -14,14 +14,17 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
 from app.config import get_settings
+from app.observability.logger import init_logger
+from app.observability.metrics import compute_metrics
 from app.rag.store import get_vector_store
-from app.routes import upload
+from app.routes import qa, upload
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
     app.state.settings = settings
+    init_logger(settings.log_dir)
     app.state.vector_store = get_vector_store(
         backend=settings.vector_backend,
         faiss_dir=settings.faiss_index_dir,
@@ -49,6 +52,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(upload.router)
+    app.include_router(qa.router)
 
     @app.get("/health", tags=["meta"])
     def health() -> dict:
@@ -60,6 +64,16 @@ def create_app() -> FastAPI:
             "llm_configured": settings.has_llm_credentials,
             "vector_backend": settings.vector_backend,
         }
+
+    @app.get("/metrics", tags=["meta"])
+    def metrics(window: int = 500) -> dict:
+        """Aggregated request metrics over the last `window` log entries.
+
+        Returns per-model latency percentiles (p50/p95), total cost, token
+        counts, cost-per-query, and error rate. All computed from the JSONL
+        observability log — no external metrics store required.
+        """
+        return compute_metrics(window=window)
 
     return app
 

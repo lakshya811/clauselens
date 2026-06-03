@@ -261,12 +261,7 @@ def run_answer(
     from app.rag.retrieve import _bm25_ranked, _build_bm25
 
     # Chunk the contract text
-    chunks = chunk_document(
-        full_text=contract_text,
-        doc_id=doc_id,
-        filename=f"{doc_id}.txt",
-        page_count=1,
-    )
+    chunks = chunk_document(text=contract_text, doc_id=doc_id)
 
     if not chunks:
         return "No chunks generated.", "", 0.0, 0, 0
@@ -353,6 +348,12 @@ def main() -> None:
     )
     parser.add_argument("--dry-run", action="store_true", help="Print pairs without calling LLM")
     parser.add_argument("--top-k", type=int, default=5, help="Retrieval top-k (default: 5)")
+    parser.add_argument(
+        "--sleep",
+        type=float,
+        default=0.0,
+        help="Seconds to sleep between questions (throttle free-tier rate limits, e.g. 8.0)",
+    )
     args = parser.parse_args()
 
     id_filter = [x.strip() for x in args.ids.split(",")] if args.ids else None
@@ -471,6 +472,10 @@ def main() -> None:
             score.mean,
             combined_cost,
         )
+
+        # Throttle to respect free-tier per-minute rate limits
+        if args.sleep > 0 and i < len(pairs):
+            time.sleep(args.sleep)
 
     # Compute aggregate stats
     scored = [r for r in all_results if not r.get("error")]

@@ -1,0 +1,28 @@
+# Development artifacts
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+*.egg-info
+
+# Frontend build inputs (output is baked in by the build stage)
+frontend/node_modules
+frontend/dist
+
+# Local env and secrets — NEVER bake into the image
+.env
+**/.env
+
+# Data and eval results — too large and runtime-generated
+data/index
+evals/results
+
+# Git
+.git
+.gitignore
+
+# Docs and CI only
+*.md
+.github

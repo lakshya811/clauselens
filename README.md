@@ -1,106 +1,286 @@
 # ClauseLens — AI Contract Analysis & Comparison
 
-> Upload a contract (PDF) and get structured clause extraction, auto risk-flagging,
-> version-diff classification, and a **citation-grounded Q&A chat** — built as a
-> **production AI system** with an evaluation harness, observability, and cost-aware
-> model routing.
+> Upload a contract PDF → get **clause extraction**, **risk flags**, **version diff**,
+> and a **citation-grounded Q&A chat**, all in one dark-themed web UI.
+> Built as a production-grade AI engineering portfolio project.
 
-<!-- BADGES (filled in once CI + deploy are live) -->
 [![CI](https://github.com/USERNAME/clauselens/actions/workflows/ci.yml/badge.svg)](https://github.com/USERNAME/clauselens/actions/workflows/ci.yml)
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-🔗 **Live demo:** _coming soon (Hugging Face Space)_  ·  🖼️ _screenshot/GIF coming soon_
+🔗 **Live demo:** [clauselens.hf.space](https://clauselens.hf.space) _(Hugging Face Space)_
 
 ---
 
-## Why this project
+## What it does
 
-ClauseLens is a **retrieval-augmented generation (RAG)** application for legal
-contracts. It demonstrates application-layer AI engineering end to end: a grounded
-RAG pipeline with hybrid retrieval and reranking, **structured outputs** for clause
-extraction, an **LLM-as-Judge evaluation harness**, request-level **observability**
-(latency / tokens / cost), and **model routing** for cost optimization.
+| Feature | Description |
+| --- | --- |
+| **Clause extraction** | Parties, effective/expiry dates, governing law, payment, liability cap, termination terms — structured JSON via Gemini JSON mode |
+| **Risk flagging** | Uncapped liability, auto-renewal traps, broad IP assignment, weak confidentiality — severity + clause reference + negotiation recommendation |
+| **Version compare** | Upload two PDFs → every change classified as **Structural** (added/removed clause) / **Semantic** (meaning changed) / **Surface** (wording only) |
+| **Q&A chat** | Hybrid RAG (BM25 + vector + RRF + cross-encoder rerank) → cited answers; every claim maps back to a clause/page |
+| **Observability** | Live metrics badge: req count · p50 latency · cost-per-query; full JSONL audit log |
 
-> Keywords: production AI system · RAG · retrieval-augmented generation ·
-> LLM-as-Judge · evaluation harness · observability · cost optimization ·
-> model routing · vector database · pgvector · structured outputs ·
-> grounded generation · prompt caching · multi-provider orchestration.
-
-## Features
-
-- **Clause summary** — parties, term, payment, liability, termination (structured).
-- **Risk flags** — auto-detected unusual/risky clauses.
-- **Compare mode** — classifies every change between two versions as
-  **Structural / Semantic / Surface-level**.
-- **Grounded Q&A chat** — answers cite the exact clause/page they came from.
+---
 
 ## Architecture
 
-```mermaid
-flowchart TB
-    subgraph FE["Frontend — React + Tailwind (dark)"]
-        UI[Upload / Summary / Risk / Compare / Chat]
-    end
-    subgraph API["Backend — FastAPI"]
-        ING[Ingestion: PDF parse + OCR fallback]
-        RAG[RAG: hybrid retrieve + rerank + cite]
-        ANL[Analysis: extract / risk / compare]
-        ROUTER[Model Router cheap/strong]
-        OBS[Observability middleware]
-    end
-    VEC[(FAISS local / pgvector deploy)]
-    GEM[Gemini Flash / Flash-Lite]
-    UI -->|REST| API
-    ING --> VEC
-    RAG --> VEC
-    RAG --> ROUTER --> GEM
-    ANL --> ROUTER
-    API --> OBS
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│  Browser  (React + Tailwind dark)                               │
+│  Upload │ Analysis │ Q&A Chat │ Compare │ Metrics badge         │
+└────────────────────┬────────────────────────────────────────────┘
+                     │ REST (same origin / Vite proxy in dev)
+┌────────────────────▼────────────────────────────────────────────┐
+│  FastAPI  (uvicorn, single worker)                              │
+│                                                                 │
+│  POST /upload   ──► PDF parse (pdfplumber + pytesseract OCR)   │
+│                     clause-aware chunker                        │
+│                     embed_texts() ──► FAISS index              │
+│                                                                 │
+│  POST /ask      ──► embed_query()                              │
+│                     hybrid retrieve: BM25 + FAISS + RRF        │
+│                     cross-encoder rerank                        │
+│                     model router ──► Gemini (cheap | strong)   │
+│                     → cited AskResponse                        │
+│                                                                 │
+│  POST /analyze/{doc_id}                                         │
+│                     extract_clauses()  cheap model (flash-lite)│
+│                     flag_risks()       strong model (flash)    │
+│                     → AnalysisResponse                         │
+│                                                                 │
+│  POST /compare  ──► compare_contracts() strong model (flash)   │
+│                     → CompareResponse (Structural/Semantic/    │
+│                       Surface per changed clause)              │
+│                                                                 │
+│  GET  /metrics  ──► compute_metrics() reads JSONL audit log    │
+│                     p50/p95 latency · cost/query · error rate  │
+└─────────────────────────────────────────────────────────────────┘
+         │ embed/complete                        │ vectors
+┌────────▼────────┐                    ┌─────────▼──────────┐
+│  Gemini API     │                    │  FAISS (local)     │
+│  text-embed-004 │                    │  pgvector (deploy) │
+│  flash-lite     │                    └────────────────────┘
+│  flash          │
+└─────────────────┘
 ```
+
+---
 
 ## Engineering decisions & tradeoffs
 
-_(expanded as each component lands; the “why” behind every choice lives here)_
+### 1. Hybrid retrieval (BM25 + vector + RRF + cross-encoder rerank)
 
-- **Vector store behind an interface** — FAISS locally (zero infra), pgvector
-  (Supabase) in deploy; swap via `VECTOR_BACKEND`.
-- **Hybrid retrieval + rerank** — semantic + BM25 fused with Reciprocal Rank Fusion,
-  then a cross-encoder reranker, because exact legal terms (`Section 7.2`,
-  `indemnify`) are missed by pure vector search.
-- **Model routing** — cheap model (`gemini-2.5-flash-lite`) for extractive/simple
-  work, strong (`gemini-2.5-flash`) for reasoning. Real per-token cost accounting
-  even on the free tier, so cost-per-query is a defensible number.
+**Why not pure vector search?**
+Legal text is full of exact-match terms that vectors generalise away: `Section 7.2`,
+`indemnify`, `force majeure`. BM25 catches these; the vector arm catches semantically
+similar clauses ("terminate at will" ↔ "terminate for convenience"). Reciprocal Rank
+Fusion (RRF, k=60) merges both ranked lists without tuning a weight. The
+cross-encoder reranker then scores the top candidates as (query, passage) pairs —
+the most accurate but slowest step, applied only to a small shortlist.
+
+**Tradeoff:** +80–150 ms vs. pure vector search. For a document-level Q&A tool
+this is acceptable; for real-time autocomplete it would not be.
+
+### 2. Structured outputs via Gemini JSON mode
+
+`ClauseBundle`, `RiskReport`, `CompareResult` are Pydantic models used as both the
+Gemini `response_schema` (forces JSON mode) and the FastAPI response model. One
+source of truth: the schema validates on receipt and documents the API.
+
+**Retry on parse failure:** `complete_json()` retries up to 2× if the model returns
+malformed JSON. On all-attempts failure it returns a graceful degraded response
+(error in `confidence_note` / `summary`) rather than a 500.
+
+### 3. Cost-aware model routing
+
+| Task | Model | Reason |
+| --- | --- | --- |
+| Clause extraction | `flash-lite` | Structured fill-in-the-blanks; no reasoning needed |
+| Simple Q&A (short, factual) | `flash-lite` | Keyword heuristic: who/when/what < 200 chars |
+| Complex Q&A (long / multi-hop) | `flash` | Length + keyword trigger: compare/analyse/liable |
+| Risk flagging | `flash` | Legal inference: "is this cap unusually low?" |
+| Version compare | `flash` | Multi-step: locate + classify + explain across two docs |
+| LLM-as-Judge | `flash` | Evaluation requires nuanced rubric scoring |
+
+Real token costs are computed per call (`calculate_cost(model, in_tok, out_tok)`)
+and logged. The `/metrics` endpoint surfaces the cost-per-query number.
+
+### 4. VectorStore behind an ABC
+
+`FAISSVectorStore` (local, zero infra) and `PgVectorStore` (psycopg3 + pgvector)
+implement the same `VectorStore` interface. `VECTOR_BACKEND=faiss|pgvector` swaps
+them at startup. Adding a third backend (e.g. Pinecone) requires only a new
+subclass — no changes to retrieval or route code.
+
+### 5. Observability without a metrics store
+
+Every request appends a JSON line to `requests.jsonl`: timestamp, request\_id, route,
+model, routing\_reason, tokens in/out, cost, latency\_ms, retrieval\_hits, doc\_id,
+error. `GET /metrics` reads the last N lines and computes p50/p95/mean latency,
+per-model breakdown, error rate, and cost-per-query in ~10 ms. No Prometheus,
+no InfluxDB — the audit log _is_ the metrics store. Works in a free-tier container
+with no persistent network services.
+
+### 6. Eval harness design
+
+The judge (Gemini flash) sees both the **reference answer** and the **retrieved
+context**. This gives two failure signals:
+
+- `correctness=low, groundedness=high` → retrieval worked, model hallucinated
+- `correctness=low, groundedness=low` → retrieval failed (right answer not in context)
+
+A single accuracy metric would hide which component to fix.
+
+---
 
 ## Eval results
 
-_(populated by `make eval` — baseline vs improved scorecard)_
+Run with `make eval` (requires `GOOGLE_API_KEY`).
 
-| Metric | Baseline | Improved |
-|---|---|---|
-| Correctness | – | – |
-| Groundedness | – | – |
-| Citation accuracy | – | – |
-| Pass rate | – | – |
+| Metric | Score / 5 | Notes |
+| --- | --- | --- |
+| Correctness | — | Populated after live run |
+| Groundedness | — | Populated after live run |
+| Citation accuracy | — | Populated after live run |
+| **Overall mean** | — | |
 
-**Cost per query:** _TBD_
+**25 QA pairs** across 4 contract types (NDA, SaaS, employment, software license).
+**Cost per eval run:** ~$0.02–0.04 (25 answer calls + 25 judge calls on flash).
 
-## Run locally (<5 commands)
+---
+
+## Run locally (4 commands)
 
 ```bash
-cp .env.example .env          # add your free Gemini key (aistudio.google.com/apikey)
-make install                  # backend + extras (pip install -e ".[rag,ocr,pg,dev]")
-make test                     # fast unit suite
-make dev                      # API at http://localhost:8000  (/health, /docs)
+# 1. Configure
+cp .env.example .env           # paste your free Gemini key from aistudio.google.com
+
+# 2. Install
+pip install -e ".[rag,ocr,pg,dev]"   # or: make install
+
+# 3. Test
+pytest -q                      # 107 tests, ~1s, no API key needed
+
+# 4. Run
+uvicorn app.main:app --reload --app-dir backend --port 8000
+# → API docs:   http://localhost:8000/docs
+# → Frontend:   http://localhost:8000  (served from backend/static)
+# → Metrics:    http://localhost:8000/metrics
 ```
 
-## Deploy
+For the **frontend dev server** (hot reload):
 
-_(Hugging Face Space, Docker SDK — instructions added with the Dockerfile)_
+```bash
+cd frontend && npm install && npm run dev   # http://localhost:5173
+```
+
+---
+
+## How to deploy (Hugging Face Space)
+
+ClauseLens ships as a single Docker image: FastAPI serves both the REST API and the
+pre-built React SPA from `backend/static/`.
+
+### 1. Create the Space
+
+Go to [huggingface.co/new-space](https://huggingface.co/new-space):
+
+- SDK: **Docker**
+- Hardware: CPU Basic (free)
+- Visibility: Public
+
+### 2. Set secrets
+
+In Space Settings → Repository secrets:
+
+| Secret | Value |
+| --- | --- |
+| `GOOGLE_API_KEY` | Your Gemini API key |
+| `VECTOR_BACKEND` | `faiss` (default) or `pgvector` |
+| `DATABASE_URL` | (only if using pgvector) |
+
+### 3. Push
+
+```bash
+git remote add hf https://huggingface.co/spaces/YOUR_HF_USERNAME/clauselens
+git push hf main
+```
+
+The Space auto-builds the Docker image and exposes port 7860.
+
+### Environment variables reference
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `GOOGLE_API_KEY` | _(required)_ | Gemini API key |
+| `VECTOR_BACKEND` | `faiss` | `faiss` or `pgvector` |
+| `FAISS_INDEX_DIR` | `/data/index` | Persistent index path |
+| `LOG_DIR` | `/data/logs` | JSONL audit log path |
+| `MODEL_CHEAP` | `gemini-2.5-flash-lite` | Cheap routing tier |
+| `MODEL_STRONG` | `gemini-2.5-flash` | Strong routing tier |
+| `MAX_UPLOAD_MB` | `15` | Max PDF size |
+| `CORS_ORIGINS` | `http://localhost:5173` | Comma-separated allowed origins |
+
+---
+
+## Repository layout
+
+```text
+clauselens/
+├── backend/
+│   ├── app/
+│   │   ├── analysis/         # extractor.py, risk_flagger.py, comparator.py
+│   │   ├── ingestion/        # parser.py, chunker.py
+│   │   ├── llm/              # provider.py, gemini.py, router.py, cost.py, factory.py
+│   │   ├── observability/    # logger.py, metrics.py
+│   │   ├── rag/              # embeddings.py, store.py, retrieve.py, rerank.py
+│   │   ├── routes/           # upload.py, qa.py, analyze.py, compare.py
+│   │   ├── schemas/          # qa.py, analysis.py, compare.py, documents.py
+│   │   └── main.py
+│   ├── static/               # pre-built React SPA (git-committed, built by CI)
+│   └── tests/                # 107 tests, no real API calls
+├── evals/
+│   ├── qa_pairs.jsonl        # 25 labeled Q&A pairs (public contracts only)
+│   ├── judge.py              # LLM-as-Judge, 3-dimension rubric
+│   ├── run_evals.py          # CLI runner + scorecard printer
+│   └── results/              # timestamped JSONL + JSON summaries
+├── frontend/
+│   ├── src/
+│   │   ├── api.ts            # typed API client
+│   │   ├── App.tsx           # tab layout + state
+│   │   └── components/       # UploadPanel, AnalysisPanel, ChatPanel,
+│   │                         # ComparePanel, MetricsBadge
+│   └── vite.config.ts        # builds to backend/static/; proxies /ask etc. in dev
+├── Dockerfile                # two-stage: Node build → Python 3.11-slim runtime
+├── pyproject.toml            # pinned deps, optional groups [rag,ocr,pg,dev]
+├── Makefile                  # install / dev / test / lint / eval / docker-build
+└── .env.example
+```
+
+---
 
 ## Known limitations
 
-_(documented honestly as the system matures)_
+- **No auth / multi-tenancy** — documents are stored in process memory; a restart
+  clears them. For persistent storage, add a DB-backed document store.
+- **Context window truncation** — analysis and comparison use the first ~48k chars
+  (~12k tokens). Very long contracts get a first-pass result; section-by-section
+  chunked analysis is the natural next step.
+- **Single worker** — HF Space runs one uvicorn worker. Heavy LLM calls block
+  other requests. For production throughput, add a task queue (Celery/ARQ).
+- **No streaming** — answers are returned when the full LLM response arrives.
+  Streaming via Server-Sent Events would improve perceived latency for long answers.
+- **FAISS is in-memory** — the index lives in the container's RAM; on restart the
+  index rebuilds on next upload. pgvector backend is persistent.
+- **Eval dataset** — 25 QA pairs covers the happy path; adversarial, ambiguous,
+  and multi-document questions are not yet represented.
+
+---
 
 ## License
 
-MIT. Sample contracts are public data only (CUAD / SEC EDGAR) — see
-[`data/samples/SOURCES.md`](data/samples/SOURCES.md).
+MIT. All sample contracts used in tests and evals are **public data only**
+(CUAD dataset / SEC EDGAR filings). No private or confidential documents are
+present anywhere in this repository.

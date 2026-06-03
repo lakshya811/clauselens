@@ -1,21 +1,47 @@
 import { useEffect, useRef, useState } from 'react'
-import { Send, Loader2, BookOpen } from 'lucide-react'
-import { askQuestion, type AskResponse } from '../api'
-
-interface Message {
-  role: 'user' | 'assistant'
-  content: string
-  response?: AskResponse
-}
+import { Send, Loader2, BookOpen, ChevronDown, ChevronUp } from 'lucide-react'
+import { askQuestion, type CitedChunk } from '../api'
+import type { ChatMessage } from '../App'
 
 interface Props {
   docId: string | null
+  messages: ChatMessage[]
+  setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>
 }
 
-export function ChatPanel({ docId }: Props) {
-  const [messages, setMessages] = useState<Message[]>([])
+// Expandable citation card — clicking reveals the full source text
+function CitationCard({ c }: { c: CitedChunk }) {
+  const [expanded, setExpanded] = useState(false)
+  return (
+    <button
+      onClick={() => setExpanded(e => !e)}
+      className="w-full text-left text-xs bg-gray-900/70 hover:bg-gray-900 border border-gray-700/60 hover:border-indigo-600/40 rounded-lg px-2.5 py-2 transition-colors space-y-1"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-indigo-400 font-mono font-semibold">{c.citation}</span>
+        <div className="flex items-center gap-1.5 text-gray-500">
+          <span className="text-gray-600">score {c.score.toFixed(2)}</span>
+          {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+        </div>
+      </div>
+      {!expanded && (
+        <p className="text-gray-500 line-clamp-1">{c.text_snippet}</p>
+      )}
+      {expanded && (
+        <p className="text-gray-300 whitespace-pre-wrap leading-relaxed border-t border-gray-700/50 pt-1.5 mt-1">
+          {c.text_snippet}
+        </p>
+      )}
+    </button>
+  )
+}
+
+const RETRIEVAL_STEPS = ['Running retrieval…', 'Reranking chunks…', 'Generating answer…']
+
+export function ChatPanel({ docId, messages, setMessages }: Props) {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [stepIdx, setStepIdx] = useState(0)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -28,6 +54,8 @@ export function ChatPanel({ docId }: Props) {
     setInput('')
     setMessages(prev => [...prev, { role: 'user', content: q }])
     setLoading(true)
+    setStepIdx(0)
+    const interval = setInterval(() => setStepIdx(i => Math.min(i + 1, RETRIEVAL_STEPS.length - 1)), 1000)
     try {
       const res = await askQuestion(docId, q)
       setMessages(prev => [...prev, { role: 'assistant', content: res.answer, response: res }])
@@ -35,47 +63,49 @@ export function ChatPanel({ docId }: Props) {
       const msg = e instanceof Error ? e.message : 'Error'
       setMessages(prev => [...prev, { role: 'assistant', content: `⚠ ${msg}` }])
     } finally {
+      clearInterval(interval)
       setLoading(false)
     }
   }
 
   if (!docId) {
-    return <p className="text-gray-500 text-sm">Upload a document first.</p>
+    return <p className="text-gray-500 text-sm">Upload a document or load a sample first.</p>
   }
 
   return (
     <div className="flex flex-col h-[600px]">
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto space-y-4 pr-1 pb-2">
         {messages.length === 0 && (
           <p className="text-gray-600 text-sm text-center pt-8">
-            Ask anything about the contract — try "What is the notice period?" or "Who bears liability?"
+            Ask anything — "What is the notice period?", "Who owns IP created during the contract?", "What are the payment terms?"
           </p>
         )}
         {messages.map((msg, i) => (
           <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] rounded-xl px-4 py-3 text-sm space-y-2 ${
+            <div className={`max-w-[85%] rounded-xl px-4 py-3 text-sm space-y-2.5 ${
               msg.role === 'user'
                 ? 'bg-indigo-600 text-white'
                 : 'bg-gray-800 border border-gray-700 text-gray-200'
             }`}>
               <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+
+              {/* Verifiable citations — click to expand full source text */}
               {msg.response && msg.response.citations.length > 0 && (
-                <div className="border-t border-gray-700 pt-2 space-y-1">
+                <div className="space-y-1.5 border-t border-gray-700/60 pt-2">
                   <p className="text-xs text-gray-500 flex items-center gap-1">
-                    <BookOpen className="w-3 h-3" /> Sources
+                    <BookOpen className="w-3 h-3" />
+                    Sources — click to verify
                   </p>
-                  {msg.response.citations.slice(0, 4).map((c, ci) => (
-                    <div key={ci} className="text-xs bg-gray-900/60 rounded px-2 py-1">
-                      <span className="text-indigo-400 font-mono">{c.citation}</span>
-                      <span className="text-gray-500 ml-2">{c.text_snippet.slice(0, 80)}…</span>
-                    </div>
+                  {msg.response.citations.slice(0, 5).map((c, ci) => (
+                    <CitationCard key={ci} c={c} />
                   ))}
                 </div>
               )}
+
+              {/* Cost / latency footer */}
               {msg.response && (
-                <p className="text-xs text-gray-600">
-                  {msg.response.model} · {msg.response.retrieval_hits} hits · ${msg.response.cost_usd.toFixed(6)}
+                <p className="text-xs text-gray-600 border-t border-gray-700/40 pt-1.5">
+                  answered in {(msg.response.latency_ms / 1000).toFixed(1)}s · ~${msg.response.cost_usd.toFixed(4)} · {msg.response.retrieval_hits} chunks retrieved · {msg.response.model}
                 </p>
               )}
             </div>
@@ -83,15 +113,15 @@ export function ChatPanel({ docId }: Props) {
         ))}
         {loading && (
           <div className="flex justify-start">
-            <div className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3">
-              <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
+            <div className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 flex items-center gap-2 text-sm text-gray-400">
+              <Loader2 className="w-4 h-4 animate-spin text-indigo-400 shrink-0" />
+              {RETRIEVAL_STEPS[stepIdx]}
             </div>
           </div>
         )}
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
       <div className="flex gap-2 pt-3 border-t border-gray-800">
         <input
           value={input}

@@ -23,6 +23,19 @@ export async function uploadPdf(file: File): Promise<UploadResponse> {
   return data
 }
 
+// ---- Demo samples ----------------------------------------------------------
+export interface SampleInfo { id: string; label: string; description: string }
+
+export async function listSamples(): Promise<SampleInfo[]> {
+  const { data } = await api.get<SampleInfo[]>('/demo')
+  return data
+}
+
+export async function loadSample(sampleId: string): Promise<UploadResponse> {
+  const { data } = await api.post<UploadResponse>(`/demo/${sampleId}`)
+  return data
+}
+
 // ---- Analyze ---------------------------------------------------------------
 export interface Party { name: string; role: string }
 export interface PaymentTerms { amount: string | null; due_date: string | null; late_penalty: string | null; currency: string | null }

@@ -4,11 +4,20 @@ import { analyzeDoc, type AnalysisResponse, type RiskSeverity } from '../api'
 
 interface Props {
   docId: string | null
+  result: AnalysisResponse | null
+  setResult: (r: AnalysisResponse | null) => void
 }
 
+// Pipeline steps shown during analysis
+const STEPS = [
+  'Extracting clauses…',
+  'Identifying parties and dates…',
+  'Flagging risks…',
+  'Classifying severity…',
+]
+
 function SeverityBadge({ severity }: { severity: RiskSeverity }) {
-  const cls = `text-xs font-semibold px-2 py-0.5 rounded-full badge-${severity}`
-  return <span className={cls}>{severity.toUpperCase()}</span>
+  return <span className={`text-xs font-semibold px-2 py-0.5 rounded-full badge-${severity}`}>{severity.toUpperCase()}</span>
 }
 
 function SeverityIcon({ severity }: { severity: RiskSeverity }) {
@@ -17,26 +26,31 @@ function SeverityIcon({ severity }: { severity: RiskSeverity }) {
   return <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
 }
 
-export function AnalysisPanel({ docId }: Props) {
+export function AnalysisPanel({ docId, result, setResult }: Props) {
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<AnalysisResponse | null>(null)
+  const [stepIdx, setStepIdx] = useState(0)
   const [error, setError] = useState<string | null>(null)
 
   async function run() {
     if (!docId) return
     setError(null)
+    setResult(null)
     setLoading(true)
+    setStepIdx(0)
+    // Cycle through step labels while waiting
+    const interval = setInterval(() => setStepIdx(i => (i + 1) % STEPS.length), 1800)
     try {
       setResult(await analyzeDoc(docId))
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Analysis failed')
     } finally {
+      clearInterval(interval)
       setLoading(false)
     }
   }
 
   if (!docId) {
-    return <p className="text-gray-500 text-sm">Upload a document first.</p>
+    return <p className="text-gray-500 text-sm">Upload a document or load a sample first.</p>
   }
 
   return (
@@ -47,7 +61,7 @@ export function AnalysisPanel({ docId }: Props) {
         className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
       >
         {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-        {loading ? 'Analysing…' : 'Run Analysis'}
+        {loading ? STEPS[stepIdx] : result ? 'Re-run Analysis' : 'Run Analysis'}
       </button>
 
       {error && (
@@ -119,8 +133,7 @@ export function AnalysisPanel({ docId }: Props) {
                         </div>
                         <p className="text-xs text-gray-400 mt-1">{flag.explanation}</p>
                         <p className="text-xs text-indigo-300 mt-1">
-                          <span className="text-gray-500">Recommendation: </span>
-                          {flag.recommendation}
+                          <span className="text-gray-500">Rec: </span>{flag.recommendation}
                         </p>
                       </div>
                     </div>
@@ -130,9 +143,9 @@ export function AnalysisPanel({ docId }: Props) {
             )}
           </div>
 
-          {/* Cost badge */}
+          {/* Cost/latency footer */}
           <p className="text-xs text-gray-600">
-            {result.model} · {result.input_tokens + result.output_tokens} tokens · ${result.cost_usd.toFixed(6)} · {result.latency_ms.toFixed(0)} ms
+            answered in {(result.latency_ms / 1000).toFixed(1)}s · {result.input_tokens + result.output_tokens} tokens · ~${result.cost_usd.toFixed(4)} · {result.model}
           </p>
         </div>
       )}

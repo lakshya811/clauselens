@@ -51,12 +51,7 @@ async def load_sample(sample_id: str, request: Request) -> dict:
     parsed = _Parsed()
 
     # Chunk the text
-    chunks = chunk_document(
-        full_text=text,
-        doc_id=doc_id,
-        filename=filename,
-        page_count=parsed.page_count,
-    )
+    chunks = chunk_document(text=text, doc_id=doc_id)
 
     # Store in app state (same structure as /upload)
     if not hasattr(request.app.state, "documents"):

@@ -1,5 +1,3 @@
-import { ExternalLink } from 'lucide-react'
-
 // Scores from: python evals/run_evals.py  (run locally with GOOGLE_API_KEY)
 // Update these after each eval run. See evals/results/ for raw JSONL.
 const SCORES = {
@@ -141,25 +139,6 @@ export function EvalsPanel() {
         <p className="text-xs text-gray-600">{SCORES.note}</p>
       </div>
 
-      {/* Links */}
-      <div className="flex gap-4 text-xs text-indigo-400">
-        <a
-          href="https://github.com/lakshya1111/clauselens/blob/main/evals/qa_pairs.jsonl"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1 hover:text-indigo-300"
-        >
-          <ExternalLink className="w-3 h-3" /> View all 25 QA pairs
-        </a>
-        <a
-          href="https://github.com/lakshya1111/clauselens/blob/main/evals/judge.py"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1 hover:text-indigo-300"
-        >
-          <ExternalLink className="w-3 h-3" /> Judge rubric source
-        </a>
-      </div>
     </div>
   )
 }

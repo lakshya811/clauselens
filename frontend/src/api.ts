@@ -1,7 +1,9 @@
 import axios from 'axios'
 
+// Empty string = same origin. Set VITE_API_URL only when frontend and backend
+// are on different domains (never needed when FastAPI serves the SPA itself).
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:8000',
+  baseURL: import.meta.env.VITE_API_URL || '',
 })
 
 // ---- Upload ----------------------------------------------------------------

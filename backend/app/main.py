@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
 from app.config import get_settings
+from app.routes import upload
 
 
 @asynccontextmanager
@@ -42,6 +43,8 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    app.include_router(upload.router)
 
     @app.get("/health", tags=["meta"])
     def health() -> dict:

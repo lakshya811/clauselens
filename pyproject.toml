@@ -62,6 +62,10 @@ target-version = "py39"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+# UP007: requires `X | Y` union syntax, but Python 3.9 get_type_hints() can't
+# evaluate it in Pydantic/dataclass runtime positions even with PEP 563 (from
+# __future__ import annotations). Suppress until we drop 3.9 support.
+ignore = ["UP007"]
 
 [tool.mypy]
 python_version = "3.9"

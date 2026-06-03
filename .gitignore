@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Env / secrets — NEVER commit real keys
+.env
+.env.local
+*.key
+
+# Observability output (runtime logs, regenerated)
+backend/app/observability/logs/*.jsonl
+!backend/app/observability/logs/.gitkeep
+
+# Vector store artifacts (regenerated from ingestion)
+data/index/
+*.faiss
+*.faiss.meta.json
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Eval run artifacts are committed on purpose (baseline/improved); only ignore scratch
+evals/results/_scratch/

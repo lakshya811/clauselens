@@ -123,6 +123,7 @@ export default function App() {
         <div className={tab === 'analysis' ? '' : 'hidden'}>
           <AnalysisPanel
             docId={activeDoc?.doc_id ?? null}
+            doc={activeDoc}
             result={analysisResult}
             setResult={setAnalysisResult}
           />

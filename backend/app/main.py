@@ -19,7 +19,7 @@ from app.config import get_settings
 from app.observability.logger import init_logger
 from app.observability.metrics import compute_metrics
 from app.rag.store import get_vector_store
-from app.routes import analyze, compare, demo, qa, upload
+from app.routes import analyze, compare, demo, evals, qa, upload
 
 
 @asynccontextmanager
@@ -58,6 +58,7 @@ def create_app() -> FastAPI:
     app.include_router(analyze.router)
     app.include_router(compare.router)
     app.include_router(demo.router)
+    app.include_router(evals.router)
 
     @app.get("/health", tags=["meta"])
     def health() -> dict:

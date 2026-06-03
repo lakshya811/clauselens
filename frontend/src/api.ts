@@ -72,6 +72,30 @@ export async function compareDocuments(docIdA: string, docIdB: string): Promise<
   return data
 }
 
+// ---- Evals -----------------------------------------------------------------
+export interface EvalsSummary {
+  status: 'ok' | 'not_run' | 'error'
+  timestamp?: string
+  n_questions?: number
+  n_scored?: number
+  n_errors?: number
+  correctness_mean?: number
+  groundedness_mean?: number
+  citation_accuracy_mean?: number
+  overall_mean?: number
+  total_cost_usd?: number
+  cost_per_question_usd?: number
+  total_input_tokens?: number
+  total_output_tokens?: number
+  judge_model?: string
+  detail?: string
+}
+
+export async function fetchEvalsSummary(): Promise<EvalsSummary> {
+  const { data } = await api.get<EvalsSummary>('/evals/summary')
+  return data
+}
+
 // ---- Metrics ---------------------------------------------------------------
 export interface ModelMetrics { requests: number; total_cost_usd: number; latency_p50_ms: number; latency_p95_ms: number }
 export interface MetricsResponse { window_size: number; total_requests: number; total_errors: number; error_rate: number; total_cost_usd: number; cost_per_query_usd: number; total_input_tokens: number; total_output_tokens: number; latency_p50_ms: number; latency_p95_ms: number; by_model: Record<string, ModelMetrics> }

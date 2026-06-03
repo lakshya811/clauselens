@@ -14,16 +14,20 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
 from app.config import get_settings
+from app.rag.store import get_vector_store
 from app.routes import upload
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: validate config early so misconfiguration fails before serving traffic.
     settings = get_settings()
     app.state.settings = settings
+    app.state.vector_store = get_vector_store(
+        backend=settings.vector_backend,
+        faiss_dir=settings.faiss_index_dir,
+        database_url=settings.database_url,
+    )
     yield
-    # Shutdown: nothing to tear down yet (vector store / clients added later).
 
 
 def create_app() -> FastAPI:

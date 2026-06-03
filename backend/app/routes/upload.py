@@ -17,6 +17,7 @@ from fastapi import APIRouter, File, HTTPException, Request, UploadFile, status
 from app.config import get_settings
 from app.ingestion.chunker import Chunk, chunk_document
 from app.ingestion.pdf_parser import ParsedDocument, parse_pdf
+from app.rag.embeddings import embed_texts
 from app.schemas.documents import UploadResponse
 
 logger = logging.getLogger(__name__)
@@ -82,7 +83,7 @@ async def upload_pdf(request: Request, file: UploadFile = File(...)) -> UploadRe
         page_map=page_map,
     )
 
-    # Store in app state for now; the RAG layer will replace this with a vector index.
+    # Keep chunks in app state for BM25 retrieval (no embeddings needed).
     if not hasattr(request.app.state, "documents"):
         request.app.state.documents = {}
     request.app.state.documents[doc_id] = {
@@ -90,6 +91,24 @@ async def upload_pdf(request: Request, file: UploadFile = File(...)) -> UploadRe
         "chunks": chunks,
         "filename": file.filename,
     }
+
+    # Embed and index chunks into the vector store when credentials are available.
+    if settings.has_llm_credentials:
+        try:
+            vs = request.app.state.vector_store
+            texts = [c.text for c in chunks]
+            embeddings = embed_texts(texts, api_key=settings.google_api_key)
+            vs.add(chunks, embeddings)
+            logger.info(
+                "Indexed %d chunks for %s into %s.",
+                len(chunks), doc_id, settings.vector_backend,
+            )
+        except Exception:
+            logger.exception(
+                "Vector indexing failed for %s — RAG will degrade to BM25 only.", doc_id
+            )
+    else:
+        logger.info("No LLM credentials; skipping vector indexing for %s.", doc_id)
 
     logger.info(
         "Ingested %s → %s: %d pages, %d chunks, %d OCR pages.",

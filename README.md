@@ -5,7 +5,7 @@ colorFrom: indigo
 colorTo: purple
 sdk: docker
 app_port: 7860
-short_description: AI contract analysis — clause extraction, risk flags, Q&A chat
+short_description: AI contract analysis — RAG Q&A, risk flags, diff
 pinned: false
 ---
 

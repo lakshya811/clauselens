@@ -112,15 +112,31 @@ def _do_run(api_key: str) -> None:
             env=env,
         )
 
+        quota_exhausted = False
         assert proc.stdout is not None
         for line in proc.stdout:
             line = line.rstrip()
-            if line:
-                log(line)
+            if not line:
+                continue
+            # Filter out noisy tracebacks — only keep INFO/ERROR summary lines
+            if any(x in line for x in ("Traceback", "File \"/", "^^^", "raise ", "google.genai")):
+                continue
+            # Detect daily quota exhaustion
+            if "QUOTA_EXHAUSTED_DAILY" in line or "Daily API quota exhausted" in line:
+                quota_exhausted = True
+            log(line)
 
         proc.wait()
 
-        if proc.returncode == 0:
+        if quota_exhausted:
+            with _run_lock:
+                _run_state["status"] = "quota_exhausted"
+                _run_state["error"] = (
+                    "Daily free-tier quota exhausted (20 req/day for gemini-2.5-flash). "
+                    "Resets at midnight Pacific. Any partial results above are saved."
+                )
+            log("⚠ Daily quota exhausted — partial results saved. Try again after midnight Pacific.")
+        elif proc.returncode == 0:
             with _run_lock:
                 _run_state["status"] = "done"
             log("✓ Eval run complete — refresh to see scores.")

@@ -163,6 +163,7 @@ export function EvalsPanel() {
             onClick={handleRun}
             disabled={runStatus?.status === 'running'}
             loading={runStatus?.status === 'running'}
+            title={runStatus?.status === 'quota_exhausted' ? 'Daily quota exhausted — try after midnight Pacific' : undefined}
           >
             {runStatus?.status === 'running'
               ? 'Running…'
@@ -182,13 +183,19 @@ export function EvalsPanel() {
       {runStatus && runStatus.status !== 'idle' && (
         <Card className="overflow-hidden">
           <CardHeader
-            title={runStatus.status === 'running' ? 'Eval run in progress…' : runStatus.status === 'done' ? '✓ Run complete' : '✗ Run failed'}
+            title={
+              runStatus.status === 'running'         ? 'Eval run in progress…' :
+              runStatus.status === 'done'            ? '✓ Run complete' :
+              runStatus.status === 'quota_exhausted' ? '⚠ Daily quota exhausted' :
+                                                       '✗ Run failed'
+            }
             right={
               <span className={`text-xs font-mono ${
-                runStatus.status === 'running' ? 'text-brand-300' :
-                runStatus.status === 'done'    ? 'text-emerald-400' :
-                                                  'text-red-400'
-              }`}>{runStatus.status}</span>
+                runStatus.status === 'running'         ? 'text-brand-300' :
+                runStatus.status === 'done'            ? 'text-emerald-400' :
+                runStatus.status === 'quota_exhausted' ? 'text-amber-400' :
+                                                          'text-red-400'
+              }`}>{runStatus.status.replace('_', ' ')}</span>
             }
           />
           <div

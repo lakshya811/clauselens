@@ -99,7 +99,7 @@ export async function fetchEvalsSummary(): Promise<EvalsSummary> {
 }
 
 export interface EvalsRunStatus {
-  status: 'idle' | 'running' | 'done' | 'error'
+  status: 'idle' | 'running' | 'done' | 'error' | 'quota_exhausted'
   started_at: number | null
   log: string[]
   error: string | null

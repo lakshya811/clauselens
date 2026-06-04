@@ -418,8 +418,23 @@ def main() -> None:
                 top_k=args.top_k,
             )
         except Exception as exc:
+            err_str = str(exc)
+            # Daily quota exhausted — no point continuing, every remaining question
+            # will also fail. Write partial results and exit cleanly.
+            if "PerDay" in err_str and "RESOURCE_EXHAUSTED" in err_str:
+                logger.error(
+                    "Daily API quota exhausted after %d/%d questions. "
+                    "Quota resets at midnight Pacific. "
+                    "Use a billing-enabled key for a full run.",
+                    i - 1, len(pairs),
+                )
+                row = {"id": qid, "question": question, "error": "QUOTA_EXHAUSTED_DAILY"}
+                all_results.append(row)
+                with open(results_path, "a") as f:
+                    f.write(json.dumps(row) + "\n")
+                break   # stop — write summary for what we got
             logger.exception("Answer generation failed for %s", qid)
-            row = {"id": qid, "question": question, "error": str(exc)}
+            row = {"id": qid, "question": question, "error": err_str[:200]}
             all_results.append(row)
             with open(results_path, "a") as f:
                 f.write(json.dumps(row) + "\n")

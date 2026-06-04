@@ -99,11 +99,17 @@ export function EvalsPanel() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-base font-semibold text-slate-100">LLM-as-Judge Evaluation</h2>
-          {summary?.status === 'ok' ? (
+          {summary?.status === 'ok' && !summary.is_baseline ? (
             <p className="text-xs text-slate-500 mt-1 tnum">
               Last run <span className="text-slate-300 font-medium">{fmtTs(summary.timestamp)}</span>
-              {' · '}{summary.n_questions} pairs · {summary.n_errors ?? 0} errors
+              {' · '}{summary.n_scored}/{summary.n_questions} pairs scored
               {' · '}judge <span className="font-mono text-brand-300">{summary.judge_model}</span>
+            </p>
+          ) : summary?.status === 'ok' && summary.is_baseline ? (
+            <p className="text-xs text-slate-500 mt-1">
+              Partial run — {summary.n_scored}/{summary.n_questions} pairs ·
+              judge <span className="font-mono text-brand-300">{summary.judge_model}</span>
+              {' · '}regenerate with <span className="font-mono text-brand-300">make eval</span>
             </p>
           ) : (
             <p className="text-xs text-slate-500 mt-1">Measured by <span className="font-mono text-brand-300">run_evals.py</span> — not hardcoded</p>
@@ -113,6 +119,14 @@ export function EvalsPanel() {
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
+
+      {/* Partial-run notice */}
+      {!loading && summary?.is_baseline && (
+        <div className="flex items-center gap-2 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+          <span>⚠</span>
+          <span>Partial run (6/25 questions) — free-tier daily quota was exhausted. Scores from questions that completed. Run <span className="font-mono">make eval</span> to get the full 25/25 scorecard.</span>
+        </div>
+      )}
 
       {loading && (
         <div className="flex items-center gap-2 text-slate-500 text-sm">

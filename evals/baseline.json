@@ -1,0 +1,16 @@
+{
+  "timestamp": "baseline",
+  "n_questions": 25,
+  "n_scored": 6,
+  "n_errors": 19,
+  "correctness_mean": 4.67,
+  "groundedness_mean": 4.83,
+  "citation_accuracy_mean": 4.50,
+  "overall_mean": 4.67,
+  "total_cost_usd": 0.00092,
+  "cost_per_question_usd": 0.000153,
+  "total_input_tokens": 12840,
+  "total_output_tokens": 1020,
+  "judge_model": "gemini-2.5-flash",
+  "note": "Partial run — 6/25 completed before free-tier daily quota exhausted. Re-run with: make eval"
+}

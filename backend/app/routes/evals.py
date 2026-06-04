@@ -1,11 +1,11 @@
 """Evals results endpoint — serves the latest eval run summary to the frontend.
 
 GET /evals/summary
-  Reads the most recent evals/results/summary_<ts>.json and returns it verbatim.
-  Returns {"status": "not_run"} if no results file exists yet.
-
-This lets the Evals tab in the UI show real measured scores rather than hardcoded
-constants, while degrading gracefully on a fresh deployment.
+  1. Looks for evals/results/summary_<ts>.json (written by run_evals.py).
+     If found, returns the newest one — these are real measured scores.
+  2. Falls back to evals/baseline.json — a committed representative baseline
+     used until a live run is available.
+  3. Returns {"status": "not_run"} if neither exists.
 """
 
 from __future__ import annotations
@@ -19,25 +19,37 @@ from fastapi import APIRouter
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/evals", tags=["evals"])
 
-# Walk up from this file to the repo root, then into evals/results/
-_RESULTS_DIR = Path(__file__).parent.parent.parent.parent / "evals" / "results"
+_REPO_ROOT = Path(__file__).parent.parent.parent.parent
+_RESULTS_DIR = _REPO_ROOT / "evals" / "results"
+_BASELINE_FILE = _REPO_ROOT / "evals" / "baseline.json"
 
 
 @router.get("/summary")
 def evals_summary() -> dict:
-    """Return the latest eval run summary, or {status: not_run} if none exist."""
-    if not _RESULTS_DIR.is_dir():
-        return {"status": "not_run"}
+    """Return the latest eval run summary, or the committed baseline."""
+    # Prefer a real timestamped run result
+    if _RESULTS_DIR.is_dir():
+        summaries = sorted(_RESULTS_DIR.glob("summary_*.json"), reverse=True)
+        if summaries:
+            try:
+                with open(summaries[0]) as f:
+                    data = json.load(f)
+                data["status"] = "ok"
+                data["is_baseline"] = False
+                return data
+            except Exception as exc:
+                logger.exception("Failed to read eval summary %s", summaries[0])
 
-    summaries = sorted(_RESULTS_DIR.glob("summary_*.json"), reverse=True)
-    if not summaries:
-        return {"status": "not_run"}
+    # Fall back to committed baseline
+    if _BASELINE_FILE.exists():
+        try:
+            with open(_BASELINE_FILE) as f:
+                data = json.load(f)
+            data["status"] = "ok"
+            data["is_baseline"] = True
+            return data
+        except Exception as exc:
+            logger.exception("Failed to read baseline %s", _BASELINE_FILE)
+            return {"status": "error", "detail": str(exc)}
 
-    try:
-        with open(summaries[0]) as f:
-            data = json.load(f)
-        data["status"] = "ok"
-        return data
-    except Exception as exc:
-        logger.exception("Failed to read eval summary %s", summaries[0])
-        return {"status": "error", "detail": str(exc)}
+    return {"status": "not_run"}

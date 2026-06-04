@@ -88,6 +88,8 @@ export interface EvalsSummary {
   total_input_tokens?: number
   total_output_tokens?: number
   judge_model?: string
+  is_baseline?: boolean
+  note?: string
   detail?: string
 }
 

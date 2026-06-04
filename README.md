@@ -92,14 +92,16 @@ Every request appends one JSON line: timestamp, request\_id, route, model, routi
 
 **25 labeled Q&A pairs** across 4 contract types (NDA, SaaS, employment, software license). Judge: Gemini flash with a 1–5 rubric on three dimensions.
 
+*Last run: June 2026 · commit `4f09904` · results in [`evals/results/summary_20260604T160918.json`](evals/results/summary_20260604T160918.json) · 7/25 pairs scored before free-tier daily quota exhausted (all 7 scored 5.0/5)*
+
 | Dimension | Score / 5 | What it measures |
 | --- | --- | --- |
-| Correctness | **4.2** | Facts match the reference answer |
-| Groundedness | **4.5** | Every claim supported by retrieved context |
-| Citation accuracy | **3.9** | Citations are specific and map to the right excerpt |
-| **Overall mean** | **4.2** | |
+| Correctness | **5.0** | Facts match the reference answer |
+| Groundedness | **5.0** | Every claim supported by retrieved context |
+| Citation accuracy | **5.0** | Citations are specific and map to the right excerpt |
+| **Overall mean** | **5.0** | |
 
-**Cost per eval run:** ~$0.03 (25 answer calls + 25 judge calls).
+**Cost per eval run:** ~$0.005 (7 answer + 7 judge calls on free tier).
 
 The judge sees both the reference answer and the retrieved context — so `correctness↓ + groundedness↑` points to a generation bug, while `correctness↓ + groundedness↓` points to a retrieval bug. A single accuracy number would hide which component to fix.
 

@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
-import { Loader2, RefreshCw, Terminal } from 'lucide-react'
-import { fetchEvalsSummary, type EvalsSummary } from '../api'
-import { Card, CardHeader, Alert } from './ui'
+import { useEffect, useRef, useState } from 'react'
+import { Loader2, RefreshCw, Terminal, Play, CheckCircle2 } from 'lucide-react'
+import { fetchEvalsSummary, fetchEvalsStatus, triggerEvalsRun, type EvalsSummary, type EvalsRunStatus } from '../api'
+import { Card, CardHeader, Alert, Button } from './ui'
 
 // Baseline = BM25-only, no reranking (first working retrieval implementation)
 // Current  = BM25 + FAISS vector + RRF + cross-encoder rerank
@@ -65,6 +65,10 @@ function NotRunBanner() {
 export function EvalsPanel() {
   const [summary, setSummary] = useState<EvalsSummary | null>(null)
   const [loading, setLoading] = useState(true)
+  const [runStatus, setRunStatus] = useState<EvalsRunStatus | null>(null)
+  const [startError, setStartError] = useState<string | null>(null)
+  const logRef = useRef<HTMLDivElement>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   async function load() {
     setLoading(true)
@@ -77,7 +81,44 @@ export function EvalsPanel() {
     }
   }
 
-  useEffect(() => { load() }, [])
+  // Poll run status while running; stop and reload summary when done
+  function startPolling() {
+    if (pollRef.current) clearInterval(pollRef.current)
+    pollRef.current = setInterval(async () => {
+      try {
+        const s = await fetchEvalsStatus()
+        setRunStatus(s)
+        // Auto-scroll log
+        if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
+        if (s.status === 'done' || s.status === 'error') {
+          clearInterval(pollRef.current!)
+          pollRef.current = null
+          if (s.status === 'done') load()   // refresh scores
+        }
+      } catch { /* network blip — keep polling */ }
+    }, 2000)
+  }
+
+  async function handleRun() {
+    setStartError(null)
+    try {
+      await triggerEvalsRun()
+      const s = await fetchEvalsStatus()
+      setRunStatus(s)
+      startPolling()
+    } catch (e: unknown) {
+      setStartError(e instanceof Error ? e.message : 'Failed to start eval run')
+    }
+  }
+
+  // Check if already running on mount (e.g. page refresh mid-run)
+  useEffect(() => {
+    load()
+    fetchEvalsStatus().then(s => {
+      if (s.status === 'running') { setRunStatus(s); startPolling() }
+    }).catch(() => null)
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  }, [])
 
   function fmtTs(ts?: string) {
     if (!ts) return '—'
@@ -115,16 +156,75 @@ export function EvalsPanel() {
             <p className="text-xs text-slate-500 mt-1">Measured by <span className="font-mono text-brand-300">run_evals.py</span> — not hardcoded</p>
           )}
         </div>
-        <button onClick={load} disabled={loading} className="text-slate-600 hover:text-slate-300 transition-colors shrink-0 mt-1" title="Refresh" aria-label="Refresh">
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-        </button>
+        <div className="flex items-center gap-2 shrink-0 mt-0.5">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleRun}
+            disabled={runStatus?.status === 'running'}
+            loading={runStatus?.status === 'running'}
+          >
+            {runStatus?.status === 'running'
+              ? 'Running…'
+              : runStatus?.status === 'done'
+              ? <><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Re-run</>
+              : <><Play className="w-3.5 h-3.5" /> Run evals</>}
+          </Button>
+          <button onClick={load} disabled={loading} className="text-slate-600 hover:text-slate-300 transition-colors" title="Refresh results" aria-label="Refresh">
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
 
+      {startError && <Alert>{startError}</Alert>}
+
+      {/* Live run log */}
+      {runStatus && runStatus.status !== 'idle' && (
+        <Card className="overflow-hidden">
+          <CardHeader
+            title={runStatus.status === 'running' ? 'Eval run in progress…' : runStatus.status === 'done' ? '✓ Run complete' : '✗ Run failed'}
+            right={
+              <span className={`text-xs font-mono ${
+                runStatus.status === 'running' ? 'text-brand-300' :
+                runStatus.status === 'done'    ? 'text-emerald-400' :
+                                                  'text-red-400'
+              }`}>{runStatus.status}</span>
+            }
+          />
+          <div
+            ref={logRef}
+            className="font-mono text-xs text-slate-400 bg-slate-950/60 p-3 h-40 overflow-y-auto leading-relaxed space-y-0.5"
+          >
+            {runStatus.log.length === 0
+              ? <span className="text-slate-600">Starting…</span>
+              : runStatus.log.map((line, i) => (
+                  <p key={i} className={
+                    line.includes('✓') ? 'text-emerald-400' :
+                    line.includes('✗') || line.includes('error') || line.includes('Error') ? 'text-red-400' :
+                    line.includes('→') ? 'text-slate-300' :
+                    'text-slate-500'
+                  }>{line}</p>
+                ))
+            }
+            {runStatus.status === 'running' && (
+              <p className="text-brand-400 flex items-center gap-1.5">
+                <Loader2 className="w-3 h-3 animate-spin inline" /> processing…
+              </p>
+            )}
+          </div>
+          {runStatus.error && (
+            <div className="px-3 pb-3">
+              <Alert>{runStatus.error}</Alert>
+            </div>
+          )}
+        </Card>
+      )}
+
       {/* Partial-run notice */}
-      {!loading && summary?.is_baseline && (
+      {!loading && summary?.is_baseline && runStatus?.status !== 'running' && (
         <div className="flex items-center gap-2 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
           <span>⚠</span>
-          <span>Partial run (6/25 questions) — free-tier daily quota was exhausted. Scores from questions that completed. Run <span className="font-mono">make eval</span> to get the full 25/25 scorecard.</span>
+          <span>Partial run (6/25) — free-tier quota was exhausted. Click <strong>Run evals</strong> above to generate a fresh full scorecard.</span>
         </div>
       )}
 

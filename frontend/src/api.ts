@@ -98,6 +98,23 @@ export async function fetchEvalsSummary(): Promise<EvalsSummary> {
   return data
 }
 
+export interface EvalsRunStatus {
+  status: 'idle' | 'running' | 'done' | 'error'
+  started_at: number | null
+  log: string[]
+  error: string | null
+}
+
+export async function fetchEvalsStatus(): Promise<EvalsRunStatus> {
+  const { data } = await api.get<EvalsRunStatus>('/evals/status')
+  return data
+}
+
+export async function triggerEvalsRun(): Promise<{ message: string; status: string }> {
+  const { data } = await api.post('/evals/run')
+  return data
+}
+
 // ---- Metrics ---------------------------------------------------------------
 export interface ModelMetrics { requests: number; total_cost_usd: number; latency_p50_ms: number; latency_p95_ms: number }
 export interface MetricsResponse { window_size: number; total_requests: number; total_errors: number; error_rate: number; total_cost_usd: number; cost_per_query_usd: number; total_input_tokens: number; total_output_tokens: number; latency_p50_ms: number; latency_p95_ms: number; by_model: Record<string, ModelMetrics> }

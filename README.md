@@ -15,6 +15,8 @@ pinned: false
 
 **[Live demo →](https://lakshya1111-clauselens.hf.space)** · Hugging Face Space (Docker, free tier) · Try the NDA / SaaS / Employment samples without uploading anything.
 
+![ClauseLens demo](docs/demo.gif)
+
 ---
 
 ## What it does

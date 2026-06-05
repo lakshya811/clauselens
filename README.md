@@ -148,7 +148,7 @@ cd frontend && npm install && npm run dev   # http://localhost:5173
 
 ```bash
 # One-time setup
-git remote add hf https://huggingface.co/spaces/YOUR_USERNAME/clauselens
+git remote add hf https://huggingface.co/spaces/YOUR_lakshya811/clauselens
 
 # Set your Gemini key as a Space secret (Settings → Repository secrets → GOOGLE_API_KEY)
 
